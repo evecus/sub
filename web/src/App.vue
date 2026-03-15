@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import NavBar from "@/components/NavBar.vue";
+import { authBus } from '@/api';
 import LoginPage from "@/views/Login.vue";
 import { useThemes } from "@/hooks/useThemes";
 import { useGlobalStore } from "@/store/global";
