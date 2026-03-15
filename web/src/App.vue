@@ -69,6 +69,10 @@ const boot = async () => {
   localStorage.setItem('backendConfigured', 'true');
 };
 
+authBus.onUnauthorized(() => {
+  isLoggedIn.value = false;
+});
+
 checkAuth();
 
 // ── 主题 ──────────────────────────────────────────────
