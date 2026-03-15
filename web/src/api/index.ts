@@ -8,21 +8,34 @@ const notifyConfig: { type: 'danger'; duration: number } = {
   duration: 2500,
 };
 
-// 固定使用相对路径，与 Go 后端同域
 const service = axios.create({
   baseURL: '',
   timeout: 50000,
   headers: { 'Content-Type': 'application/json' },
 });
 
+// 全局 401 事件，让 App.vue 监听
+export const authBus = {
+  listeners: [] as Array<() => void>,
+  onUnauthorized(cb: () => void) {
+    this.listeners.push(cb);
+  },
+  emit() {
+    this.listeners.forEach(cb => cb());
+  },
+};
+
 service.interceptors.response.use(
   (response: AxiosResponse<SucceedResponse>): AxiosPromise<SucceedResponse> => {
     return Promise.resolve(response);
   },
   (e: AxiosError<ErrorResponse>): AxiosPromise<ErrorResponse | undefined> => {
-    // 401 → 跳转登录
+    // 401 → 通知 App.vue 显示登录页，不做路由跳转
     if (e.response?.status === 401) {
-      window.location.href = '/login';
+      const url = e.config?.url || '';
+      if (!url.includes('/auth/')) {
+        authBus.emit();
+      }
       return Promise.reject(e.response);
     }
 
