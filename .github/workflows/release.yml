@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Generate tag from current time (UTC) ────────────────
+      - name: Set release tag
+        id: tag
+        run: |
+          TAG="v$(date -u +'%Y%m%d-%H%M%S')"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "Generated tag: $TAG"
+
+      # ── 3. Setup pnpm ─────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # ── 4. Setup Node & build frontend ────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: web
+        run: pnpm build
+
+      # ── 5. Setup Go ───────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Tidy and download Go modules
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Commit go.sum if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet go.sum go.mod 2>/dev/null || [ ! -f go.sum ]; then
+            git add go.sum go.mod
+            git commit -m "chore: update go.sum [skip ci]" || echo "nothing to commit"
+            git push || echo "push skipped"
+          else
+            echo "go.sum unchanged, nothing to commit"
+          fi
+
+      # ── 6. Cross-compile for all platforms ────────────────────
+      - name: Build binaries
+        env:
+          TAG: ${{ steps.tag.outputs.TAG }}
+        run: |
+          mkdir -p dist
+
+          build() {
+            local GOOS=$1 GOARCH=$2 SUFFIX=$3
+            local NAME="sub-store-${GOOS}-${GOARCH}${SUFFIX}"
+            echo "Building $NAME ..."
+            GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 \
+              go build \
+                -ldflags="-s -w -X 'github.com/evecus/sub/internal/buildinfo.Version=${TAG}'" \
+                -o "dist/${NAME}" .
+          }
+
+          build linux   amd64  ""
+          build linux   arm64  ""
+          build linux   arm    ""
+          build darwin  amd64  ""
+          build darwin  arm64  ""
+          build windows amd64  ".exe"
+          build windows arm64  ".exe"
+
+          echo "---- Built files ----"
+          ls -lh dist/
+
+      # ── 7. Generate checksums ──────────────────────────────────
+      - name: Generate SHA256 checksums
+        working-directory: dist
+        run: |
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      # ── 8. Create GitHub Release & upload assets ──────────────
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: "Release ${{ steps.tag.outputs.TAG }}"
+          body: |
+            ## Sub-Store ${{ steps.tag.outputs.TAG }}
+
+            Built at `${{ steps.tag.outputs.TAG }}` (UTC).
+
+            ### 下载说明
+
+            | 平台 | 架构 | 文件名 |
+            |------|------|--------|
+            | Linux | x86_64 | `sub-store-linux-amd64` |
+            | Linux | ARM64  | `sub-store-linux-arm64` |
+            | Linux | ARMv6  | `sub-store-linux-arm` |
+            | macOS | Intel  | `sub-store-darwin-amd64` |
+            | macOS | Apple Silicon | `sub-store-darwin-arm64` |
+            | Windows | x86_64 | `sub-store-windows-amd64.exe` |
+            | Windows | ARM64  | `sub-store-windows-arm64.exe` |
+
+            ### 快速开始
+
+            ```bash
+            # Linux / macOS
+            chmod +x sub-store-linux-amd64
+            ./sub-store-linux-amd64
+
+            # 自定义端口和密码
+            ./sub-store-linux-amd64 --port 8080 --auth admin:yourpassword --dir /data/sub-store
+            ```
+
+            启动后访问 `http://localhost:8080`，默认密码见终端输出。
+          files: |
+            dist/*
+          draft: false
+          prerelease: false
