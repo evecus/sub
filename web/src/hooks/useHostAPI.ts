@@ -9,11 +9,11 @@ export const useHostAPI = () => {
     currentName: ref('local'),
     currentUrl: fixedUrl,
     apis: ref([{ name: 'local', url: '' }]),
-    setCurrent: () => {},
-    addApi: async () => true,
-    deleteApi: () => {},
-    editApi: () => {},
-    handleUrlQuery: async () => true,
+    setCurrent: (_name: string) => {},
+    addApi: async (_api: { name: string; url: string }, _skip?: boolean): Promise<boolean> => true,
+    deleteApi: (_name: string) => {},
+    editApi: (_api: { name: string; url: string }) => {},
+    handleUrlQuery: async (_opts?: { errorCb?: () => Promise<void> }): Promise<boolean> => true,
     defaultAPI: '',
   };
 };
