@@ -8,13 +8,7 @@ const notifyConfig: { type: 'danger'; duration: number } = {
   duration: 2500,
 };
 
-const service = axios.create({
-  baseURL: '',
-  timeout: 50000,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-// 全局 401 事件，让 App.vue 监听
+// 全局 401 事件总线
 export const authBus = {
   listeners: [] as Array<() => void>,
   onUnauthorized(cb: () => void) {
@@ -25,12 +19,18 @@ export const authBus = {
   },
 };
 
+const service = axios.create({
+  baseURL: '',
+  timeout: 50000,
+  headers: { 'Content-Type': 'application/json' },
+});
+
 service.interceptors.response.use(
   (response: AxiosResponse<SucceedResponse>): AxiosPromise<SucceedResponse> => {
     return Promise.resolve(response);
   },
   (e: AxiosError<ErrorResponse>): AxiosPromise<ErrorResponse | undefined> => {
-    // 401 → 通知 App.vue 显示登录页，不做路由跳转
+    // 401 → 通知 App.vue 显示登录页
     if (e.response?.status === 401) {
       const url = e.config?.url || '';
       if (!url.includes('/auth/')) {
