@@ -554,7 +554,31 @@ func (h *Handler) nodeInfo(c *gin.Context) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
+func normalizeFormat(format string) string {
+	// 原版 Sub-Store 前端传的是大驼峰格式，统一转成我们的小写格式
+	switch format {
+	case "Surge", "SurgeMac":
+		return "surge"
+	case "ClashMeta", "Clash", "Stash", "Surfboard", "Egern":
+		return "clash"
+	case "QX":
+		return "qx"
+	case "Loon":
+		return "loon"
+	case "ShadowRocket":
+		return "shadowrocket"
+	case "sing-box":
+		return "singbox"
+	case "V2Ray", "URI":
+		return "base64"
+	case "JSON":
+		return "singbox"
+	}
+	return strings.ToLower(format)
+}
+
 func (h *Handler) writeExport(c *gin.Context, format string, nodes []store.Node) {
+	format = normalizeFormat(format)
 	switch format {
 	case "clash":
 		out, err := exporter.ToClash(nodes)
