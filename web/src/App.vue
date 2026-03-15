@@ -15,24 +15,32 @@
 
 <script setup lang="ts">
 import NavBar from "@/components/NavBar.vue";
-import { authBus } from '@/api';
 import LoginPage from "@/views/Login.vue";
+import { authBus } from "@/api";
 import { useThemes } from "@/hooks/useThemes";
 import { useGlobalStore } from "@/store/global";
 import { useSubsStore } from "@/store/subs";
 import { getFlowsUrlList } from "@/utils/getFlowsUrlList";
 import { initStores } from "@/utils/initApp";
 import { storeToRefs } from "pinia";
-import { ref, watchEffect, onMounted } from "vue";
+import { ref, watchEffect } from "vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const subsStore = useSubsStore();
 const globalStore = useGlobalStore();
 const { subs, flows } = storeToRefs(subsStore);
 const allLength = ref(null);
 
-// ── 登录状态 ──────────────────────────────────────────
 const authReady = ref(false);
 const isLoggedIn = ref(false);
+
+const boot = async () => {
+  globalStore.setBottomSafeArea(0);
+  globalStore.setFetchResult(true);
+  await initStores(false, true, false);
+  localStorage.setItem('backendConfigured', 'true');
+};
 
 const checkAuth = async () => {
   try {
@@ -44,30 +52,14 @@ const checkAuth = async () => {
   authReady.value = true;
   if (isLoggedIn.value) {
     await boot();
+    router.replace('/subs');
   }
 };
 
 const onLogin = async () => {
   isLoggedIn.value = true;
   await boot();
-};
-
-// 全局 401 拦截
-const origFetch = window.fetch.bind(window);
-window.fetch = async (...args) => {
-  const res = await origFetch(...args);
-  const url = typeof args[0] === 'string' ? args[0] : '';
-  if (res.status === 401 && !url.includes('/auth/')) {
-    isLoggedIn.value = false;
-  }
-  return res;
-};
-
-const boot = async () => {
-  globalStore.setBottomSafeArea(0);
-  globalStore.setFetchResult(true);
-  await initStores(false, true, false);
-  localStorage.setItem('backendConfigured', 'true');
+  router.replace('/subs');
 };
 
 authBus.onUnauthorized(() => {
@@ -76,10 +68,8 @@ authBus.onUnauthorized(() => {
 
 checkAuth();
 
-// ── 主题 ──────────────────────────────────────────────
 useThemes();
 
-// ── 流量状态 ──────────────────────────────────────────
 watchEffect(() => {
   allLength.value = getFlowsUrlList(subs.value).length;
   const currentLength = Object.keys(flows.value).length;
