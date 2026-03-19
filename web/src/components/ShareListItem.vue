@@ -339,25 +339,14 @@ const setIsMoveClose = () => {
 };
 
 const secretPath = computed(() => {
-  return env.value?.meta?.node?.env?.SUB_STORE_FRONTEND_BACKEND_PATH || "";
+  return env.value?.meta?.node?.env?.SUB_STORE_FRONTEND_BACKEND_PATH || "/";
 });
 
 const getShareUrl = () => {
   try {
-    const { type, name, token } = props.data;
-    if (!secretPath.value.startsWith('/')) {
-      Toast.fail(t('sharePage.magicPathErrorNotify'));
-      throw new Error(
-        t("sharePage.magicPathErrorNotify"),
-      );
-    }
-    const shareUrl = `${host.value.replace(
-      new RegExp(`${secretPath.value}$`),
-      "",
-    )}/share/${type}/${encodeURIComponent(name)}?token=${encodeURIComponent(
-      token,
-    )}`;
-    return shareUrl;
+    const { token } = props.data;
+    // 订阅链接用 /sub/:token，不暴露管理路径
+    return `${window.location.origin}/sub/${encodeURIComponent(token)}`;
   } catch (error) {
     console.error(error);
     return "";
