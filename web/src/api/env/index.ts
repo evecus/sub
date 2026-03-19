@@ -2,24 +2,27 @@ import request from '@/api';
 import { AxiosPromise } from 'axios';
 
 export function useEnvApi() {
+  const localStorageKey = 'envCache';
+
   return {
-    // 返回模拟的 env，让前端认为后端已连接
     getEnv: (): AxiosPromise<MyAxiosRes> => {
-      return Promise.resolve({
-        data: {
-          status: 'success',
-          data: {
-            backend: 'Node',
-            version: '2.16.21',
-            feature: { share: true },
-          },
-        },
-      } as any);
+      const cachedData = localStorage.getItem(localStorageKey);
+      if (cachedData) {
+        const parsedCachedData = JSON.parse(cachedData);
+        if (parsedCachedData.expiry > Date.now()) {
+          return Promise.resolve(parsedCachedData.data);
+        }
+      }
+      const promise = request({ url: '/api/utils/env', method: 'get' }).then(async response => {
+        const expiry = Date.now() + 60 * 60 * 1000;
+        const dataToCache = { data: response, expiry };
+        localStorage.setItem(localStorageKey, JSON.stringify(dataToCache));
+        return response;
+      });
+      return promise;
     },
     refreshCache: (): AxiosPromise<MyAxiosRes> => {
-      return Promise.resolve({
-        data: { status: 'success', data: {} },
-      } as any);
+      return request({ url: '/api/utils/refresh', method: 'get' });
     },
   };
 }
