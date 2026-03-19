@@ -633,12 +633,7 @@ provide("form", form);
 
 // 排除非动作卡片
 const ignoreList = ["Quick Setting Operator"];
-watch(
-  () => cmStore.EditCode['SubEditer'],
-  (newCode) => {
-    form.content = newCode;
-  }
-);
+// cmStore removed - form.content bound directly to textarea
 
 watchEffect(() => {
   if (isInit.value) return;
@@ -653,7 +648,7 @@ watchEffect(() => {
         form.url = "";
         form.content = "";
         form.ua = "";
-        cmStore.setEditCode('SubEditer', "");
+        form.content = "";
         break;
     }
     // 标记 加载完成
@@ -704,7 +699,6 @@ watchEffect(() => {
       form.source = sourceData.source;
       form.url = sourceData.url;
       form.content = sourceData.content;
-      cmStore.setEditCode('SubEditer', sourceData.content);
       form.ua = sourceData.ua;
       form._savedUA = sourceData._savedUA;
       if(form.passThroughUA && form.ua){
@@ -800,7 +794,7 @@ const fileChange = async (event) => {
     const reader = new FileReader();
     reader.readAsText(file);
     reader.onload = () => {
-      cmStore.setEditCode("SubEditer", String(reader.result));
+      form.content = String(reader.result);
     }
 
     reader.onerror = e => {
