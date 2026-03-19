@@ -14,6 +14,7 @@ import (
 	"github.com/evecus/sub/internal/api"
 	"github.com/evecus/sub/internal/buildinfo"
 	"github.com/evecus/sub/internal/ratelimit"
+	"github.com/evecus/sub/internal/session"
 	"github.com/evecus/sub/internal/store"
 )
 
@@ -57,19 +58,21 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Content-Type"},
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Cookie"},
+		AllowCredentials: true,
 	}))
 
 	h := api.New(s, backendPath)
 
 	// ── API 路由（挂在 backendPath/api 下）────────────────────────────────────
 	apiGroup := r.Group(backendPath + "/api")
-	// utils/env 是路径验证入口，加防爆破保护
+	// utils/env 是路径验证入口，加防爆破保护；成功后由 GetEnv 内部设置 session cookie
 	apiGroup.GET("/utils/env", rl.PathGuard(), h.GetEnv)
-	// 其他 API 路由
-	h.RegisterRoutes(apiGroup)
+	// 其他 API 路由需要有效的当天 session
+	authAPI := r.Group(backendPath+"/api", session.Guard())
+	h.RegisterRoutes(authAPI)
 
 	// ── 公开路由（不含 backendPath，不暴露管理路径）────────────────────────
 	// /sub/:token 加防爆破保护
