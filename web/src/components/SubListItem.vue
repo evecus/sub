@@ -322,7 +322,6 @@ import { useSettingsStore } from "@/store/settings";
 import { useSubsStore } from "@/store/subs";
 import { getString } from "@/utils/flowTransfer";
 import { isMobile } from "@/utils/isMobile";
-import CompareTable from "@/views/CompareTable.vue";
 
 const props = defineProps<{
   type: "sub" | "collection";
