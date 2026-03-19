@@ -1,9 +1,10 @@
+import { useEnvApi } from "@/api/env";
+import i18n from "@/locales";
 import { useAppNotifyStore } from "@/store/appNotify";
 import { useArtifactsStore } from "@/store/artifacts";
 import { useGlobalStore } from "@/store/global";
 import { useSettingsStore } from "@/store/settings";
 import { useSubsStore } from "@/store/subs";
-import i18n from "@/locales";
 
 export const initStores = async (
   needNotify: boolean,
@@ -17,26 +18,57 @@ export const initStores = async (
   const settingsStore = useSettingsStore();
   const { t } = i18n.global;
 
-  globalStore.setLoading(true);
+  let isSucceed = true;
 
-  // 直接设为已连接，跳过后端握手
+  if (needRefreshCache) {
+    showNotify({ title: t("globalNotify.refresh.loading"), type: "primary" });
+  }
+
+  globalStore.setLoading(true);
   globalStore.setFetchResult(true);
-  await globalStore.setEnv();
 
   try {
+    localStorage.removeItem("envCache");
+
+    // 获取后端环境信息
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')),
+        localStorage.getItem('timeout') ? parseInt(localStorage.getItem('timeout'), 10) : 3000
+      )
+    );
+    await Promise.race([globalStore.setEnv(), timeoutPromise]);
+
+    const hasBackendEnv = Object.keys(globalStore.env).length > 0 && globalStore.env.backend;
+    if (!hasBackendEnv) {
+      globalStore.setFetchResult(false);
+      isSucceed = false;
+      throw new Error('Failed to get backend env');
+    }
+
     await subsStore.fetchSubsData();
     await artifactsStore.fetchArtifactsData();
     await settingsStore.syncLocalAppearanceSetting();
     await settingsStore.fetchSettings();
+
+    if (needRefreshCache) {
+      const { data } = await useEnvApi().refreshCache();
+      if (data.status !== "success") {
+        globalStore.setFetchResult(false);
+        isSucceed = false;
+      }
+    }
   } catch (e) {
-    console.error("initStores error", e);
+    console.error('initStores error', e);
+    globalStore.setFetchResult(false);
+    subsStore.subs = [];
+    subsStore.collections = [];
+    isSucceed = false;
   }
 
-  globalStore.setLoading(false);
-
-  if (needNotify) {
+  if (isSucceed && needNotify) {
     showNotify({ title: t("globalNotify.refresh.succeed"), type: "primary" });
   }
 
+  globalStore.setLoading(false);
   if (needFetchFlow) await subsStore.fetchFlows();
 };
