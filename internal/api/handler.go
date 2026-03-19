@@ -25,7 +25,7 @@ func New(s *store.Store, backendPath string) *Handler {
 // RegisterRoutes mounts all management API (no auth — path is the secret).
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	// ── Utils (Sub-Store compat) ──────────────────────────────────────────────
-	rg.GET("/utils/env", h.getEnv)
+	// /utils/env 在 main.go 单独注册（带防爆破中间件）
 	rg.GET("/utils/refresh", h.refresh)
 
 	// ── Subscriptions (Sub-Store compat: /api/subs) ───────────────────────────
@@ -120,7 +120,7 @@ func (h *Handler) ServeSubscription(c *gin.Context) {
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
-func (h *Handler) getEnv(c *gin.Context) {
+func (h *Handler) GetEnv(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
