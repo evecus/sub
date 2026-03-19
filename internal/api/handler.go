@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/evecus/sub/internal/exporter"
 	"github.com/evecus/sub/internal/parser"
-	"github.com/evecus/sub/internal/session"
 	"github.com/evecus/sub/internal/store"
 )
 
