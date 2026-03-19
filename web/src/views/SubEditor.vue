@@ -513,7 +513,6 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
-const cmStore = useCodeStore();
 const isDis = ref(true)
 const { t } = useI18n();
 const route = useRoute();
@@ -767,17 +766,8 @@ watchEffect(() => {
   return;
 });
 
-const addAction = (val) => {
-  addItem(form, actionsList, actionsChecked, val, t);
-};
 
-const deleteAction = (id) => {
-  deleteItem(form, actionsList, actionsChecked, id);
-};
 
-const toggleAction = (id) => {
-  toggleItem(actionsList, id);
-};
 
 const closeCompare = () => {
   document.querySelector("html").style["overflow-y"] = "";
@@ -847,7 +837,7 @@ const compare = () => {
       duration: 1500,
     });
     const data: any = JSON.parse(JSON.stringify(toRaw(form)));
-    data.process = actionsToProcess(data.process, actionsList, ignoreList);
+    data.process = [];
     if (data.ignoreFailedRemoteSub === "disabled"){
       data.ignoreFailedRemoteSub = false;
     }
@@ -974,7 +964,7 @@ const submit = () => {
       ),
     ];
     data["display-name"] = data.displayName;
-    data.process = actionsToProcess(data.process, actionsList, ignoreList);
+    data.process = [];
     if (data.ignoreFailedRemoteSub === "disabled"){
       data.ignoreFailedRemoteSub = false;
     }
