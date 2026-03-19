@@ -61,15 +61,8 @@ func main() {
 		group = r.Group(backendPath)
 	}
 
-	// API 路由（无需认证，路径本身就是密钥）
+	// 所有路由（API + 下载 + 订阅）
 	h.RegisterRoutes(group)
-
-	// 公开订阅下载路由（客户端直接使用）
-	// 挂在根路径，因为 PreviewPanel 生成的链接是 host+path+/download/name
-	// host 已经包含 backendPath，所以 download 路由也在 group 下
-	group.GET("/download/:name", h.DownloadSub)
-	group.GET("/download/collection/:name", h.DownloadCollectionSub)
-	group.GET("/sub/:token", h.ServeSubscription)
 
 	// ── Frontend（静态文件，挂在根路径）────────────────────────────────────
 	distFS, err := fs.Sub(webFS, "web/dist")
