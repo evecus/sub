@@ -79,21 +79,43 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 // ServeSubscription is the public /sub/:token endpoint (no auth required).
 func (h *Handler) ServeSubscription(c *gin.Context) {
 	token := c.Param("token")
-	col, ok := h.store.GetCollectionByToken(token)
-	if !ok {
-		c.String(http.StatusNotFound, "subscription not found")
-		return
-	}
-	if col.IsExpired() {
-		c.String(http.StatusGone, "subscription has expired")
-		return
-	}
-	nodes := h.store.GetCollectionNodes(col)
 	target := c.Query("target")
 	if target == "" {
 		target = exporter.DetectFormat(c.GetHeader("User-Agent"))
 	}
-	h.writeExport(c, target, nodes)
+
+	// 先查 Token 表（通过分享管理创建的）
+	if tok, ok := h.store.GetTokenByValue(token); ok {
+		if tok.Exp != nil && time.Now().Unix() > *tok.Exp {
+			c.String(http.StatusGone, "subscription has expired")
+			return
+		}
+		var nodes []store.Node
+		if tok.Type == "sub" || tok.Type == "" {
+			if sub, ok := h.store.GetSubscriptionByName(tok.Name); ok {
+				nodes = sub.Nodes
+			}
+		} else if tok.Type == "col" {
+			if col, ok := h.store.GetCollectionByName(tok.Name); ok {
+				nodes = h.store.GetCollectionNodes(col)
+			}
+		}
+		h.writeExport(c, target, nodes)
+		return
+	}
+
+	// 再查 Collection token（旧机制）
+	if col, ok := h.store.GetCollectionByToken(token); ok {
+		if col.IsExpired() {
+			c.String(http.StatusGone, "subscription has expired")
+			return
+		}
+		nodes := h.store.GetCollectionNodes(col)
+		h.writeExport(c, target, nodes)
+		return
+	}
+
+	c.String(http.StatusNotFound, "subscription not found")
 }
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
