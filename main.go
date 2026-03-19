@@ -49,6 +49,9 @@ func main() {
 		log.Fatalf("初始化数据目录失败: %v", err)
 	}
 
+	// ── Scheduler（每天凌晨2点刷新远程订阅）────────────────────────────────────
+	scheduler.Start(s)
+
 	// ── Rate Limiter ──────────────────────────────────────────────────────────
 	rl := ratelimit.New(s.DataDir())
 
