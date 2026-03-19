@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/evecus/sub/internal/api"
 	"github.com/evecus/sub/internal/buildinfo"
-	"github.com/evecus/sub/internal/auth"
 	"github.com/evecus/sub/internal/store"
 )
 
@@ -24,27 +23,18 @@ func main() {
 	// ── Flags ─────────────────────────────────────────────────────────────────
 	port    := flag.String("port", "8080", "监听端口")
 	dataDir := flag.String("dir",  "",     "数据目录（默认 ~/.sub-store）")
-	authArg := flag.String("auth", "",     "登录凭证，格式：用户名:密码")
+	path    := flag.String("path", "/",    "后端路径前缀，例如 --path=/secret123")
 	flag.Parse()
 
-	// ── Credentials ───────────────────────────────────────────────────────────
-	username := "admin"
-	password := ""
-	firstRun := false
-
-	if *authArg != "" {
-		parts := strings.SplitN(*authArg, ":", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			log.Fatal("--auth 格式错误，应为 用户名:密码，例如：--auth admin:mypassword")
-		}
-		username = parts[0]
-		password = parts[1]
-	} else {
-		password = auth.GeneratePassword()
-		firstRun = true
+	// 规范化 path：必须以 / 开头，不以 / 结尾
+	backendPath := *path
+	if !strings.HasPrefix(backendPath, "/") {
+		backendPath = "/" + backendPath
 	}
-
-	authMgr := auth.New(username, password)
+	backendPath = strings.TrimRight(backendPath, "/")
+	if backendPath == "" {
+		backendPath = "/"
+	}
 
 	// ── Store ─────────────────────────────────────────────────────────────────
 	s, err := store.New(*dataDir)
@@ -56,21 +46,32 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type"},
-		AllowCredentials: true,
+		AllowOrigins:  []string{"*"},
+		AllowMethods:  []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:  []string{"Content-Type"},
 	}))
 
-	authMgr.RegisterAuthRoutes(r)
+	h := api.New(s, backendPath)
 
-	h := api.New(s)
-	r.GET("/sub/:token", h.ServeSubscription)
+	// ── 所有路由挂在 backendPath 前缀下 ──────────────────────────────────────
+	var group *gin.RouterGroup
+	if backendPath == "/" {
+		group = r.Group("/")
+	} else {
+		group = r.Group(backendPath)
+	}
 
-	protected := r.Group("/api", authMgr.Middleware())
-	h.RegisterProtectedRoutes(protected)
+	// API 路由（无需认证，路径本身就是密钥）
+	h.RegisterRoutes(group)
 
-	// ── Frontend ──────────────────────────────────────────────────────────────
+	// 公开订阅下载路由（客户端直接使用）
+	// 挂在根路径，因为 PreviewPanel 生成的链接是 host+path+/download/name
+	// host 已经包含 backendPath，所以 download 路由也在 group 下
+	group.GET("/download/:name", h.DownloadSub)
+	group.GET("/download/collection/:name", h.DownloadCollectionSub)
+	group.GET("/sub/:token", h.ServeSubscription)
+
+	// ── Frontend（静态文件，挂在根路径）────────────────────────────────────
 	distFS, err := fs.Sub(webFS, "web/dist")
 	if err != nil {
 		log.Fatalf("加载前端资源失败: %v", err)
@@ -78,37 +79,34 @@ func main() {
 	fileServer := http.FileServer(http.FS(distFS))
 	r.NoRoute(func(c *gin.Context) {
 		p := c.Request.URL.Path
-		if _, err := fs.Stat(distFS, p[1:]); err != nil {
-			c.Request.URL.Path = "/"
+		// 静态资源直接返回
+		if _, err := fs.Stat(distFS, strings.TrimPrefix(p, "/")); err == nil {
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
 		}
+		// 其他所有路径返回 index.html（SPA）
+		c.Request.URL.Path = "/"
 		fileServer.ServeHTTP(c.Writer, c.Request)
 	})
 
 	// ── Banner ────────────────────────────────────────────────────────────────
 	dataPath := s.DataDir()
 	fmt.Println()
-	fmt.Printf("┌──────────────────────────────────────────────────────┐\n")
-	fmt.Printf("│  Sub-Store %-42s│\n", buildinfo.Version)
-	fmt.Printf( "│  🚀 Sub-Store  →  http://localhost:%-18s│\n", *port+"  ")
+	fmt.Println("┌──────────────────────────────────────────────────────┐")
+	fmt.Printf( "│  Sub-Store %-42s│\n", buildinfo.Version)
+	fmt.Printf( "│  🚀 地址  →  http://localhost:%s%-14s│\n", *port, "")
 	fmt.Println("├──────────────────────────────────────────────────────┤")
-	fmt.Printf( "│  👤 用户名  :  %-36s│\n", username)
-	if firstRun {
-		fmt.Printf("│  🔑 密  码  :  %-36s│\n", password)
-		fmt.Println("│                                                      │")
-		fmt.Println("│  ⚠️  随机密码，建议使用 --auth 参数固定              │")
-	} else {
-		fmt.Println("│  🔑 密  码  :  (已通过 --auth 参数设置)              │")
-	}
-	fmt.Println("├──────────────────────────────────────────────────────┤")
+	fmt.Printf( "│  🔑 后端路径:  %-36s│\n", backendPath)
 	fmt.Printf( "│  📁 数据目录:  %-36s│\n", dataPath)
 	fmt.Println("└──────────────────────────────────────────────────────┘")
 	fmt.Println()
 	fmt.Println("用法示例:")
-	fmt.Println("  ./sub-store                              # 默认端口 8080，随机密码")
-	fmt.Println("  ./sub-store --port 9090                  # 自定义端口")
-	fmt.Println("  ./sub-store --auth admin:mypassword      # 固定密码")
-	fmt.Println("  ./sub-store --dir /data/sub-store        # 自定义数据目录")
-	fmt.Println("  ./sub-store --port 9090 --auth admin:123 --dir /data/sub-store")
+	fmt.Println("  ./sub-store                                  # 无路径保护")
+	fmt.Println("  ./sub-store --path=/secret123                # 设置后端路径")
+	fmt.Println("  ./sub-store --port=9090 --path=/secret123    # 自定义端口+路径")
+	fmt.Println("  ./sub-store --path=/secret123 --dir=/data    # 自定义数据目录")
+	fmt.Println()
+	fmt.Printf("  访问 http://localhost:%s/ 输入后端路径 %s 即可进入\n", *port, backendPath)
 	fmt.Println()
 
 	if err := r.Run(":" + *port); err != nil {
