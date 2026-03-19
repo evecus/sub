@@ -8,14 +8,9 @@
       size="22px"
     >
       <nut-tabbar-item class="tabbar-item" to="/subs" icon="link" />
-      <nut-tabbar-item v-show="!appearanceSetting.istabBar2" class="tabbar-item" to="/files" icon="category" />
-
-      <nut-tabbar-item
-        v-show="!appearanceSetting.istabBar"
-        class="tabbar-item"
-        to="/sync"
-        icon="refresh2"
-      />
+      <!-- 文件管理和同步功能未实现，隐藏 -->
+      <!-- <nut-tabbar-item class="tabbar-item" to="/files" icon="category" /> -->
+      <!-- <nut-tabbar-item class="tabbar-item" to="/sync" icon="refresh2" /> -->
 
       <nut-tabbar-item class="tabbar-item" to="/my" icon="setting" :dot="env.hasNewVersion"/>
     </nut-tabbar>
@@ -30,7 +25,7 @@
   import { onBeforeRouteUpdate, useRoute } from 'vue-router';
 
   const route = useRoute();
-  const routeList = ['/subs', '/files', '/sync', '/my'];
+  const routeList = ['/subs', '/my'];
   const activeTab = ref(routeList.indexOf(route.path));
 
 
