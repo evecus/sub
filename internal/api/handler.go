@@ -401,7 +401,11 @@ func (h *Handler) listTokens(c *gin.Context) {
 	typef := c.Query("type")
 	name := c.Query("name")
 	tokens := h.store.GetTokens(typef, name)
-	c.JSON(http.StatusOK, gin.H{"status": "success", "data": tokens})
+	result := make([]map[string]interface{}, 0, len(tokens))
+	for _, t := range tokens {
+		result = append(result, tokenToMap(t))
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": result})
 }
 
 func (h *Handler) createToken(c *gin.Context) {
