@@ -156,7 +156,7 @@ const handleSubmit = async () => {
 
       // 添加API并设置为当前API
       const apiName = `Custom_${new Date().getTime()}`;
-      const addResult = await addApi({ name: apiName, url: apiUrl });
+      const addResult = await addApi({ name: apiName, url: apiUrl }, true); // 已验证，跳过重复检查
 
       if (!addResult) {
         // addApi内部已经显示了错误通知，这里不需要再设置error
