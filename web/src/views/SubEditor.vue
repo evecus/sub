@@ -205,7 +205,7 @@
                 </span>
               </span>
             <div style="margin-left: -15px; margin-right: -15px;max-height: 60vh;overflow: auto;">
-              <nut-textarea v-model="form.content" rows="8" />
+              <cmView :isReadOnly="false" id="SubEditer"/>
             </div>
           </nut-form-item>
           <!-- ua -->
@@ -460,7 +460,7 @@
       <font-awesome-icon icon="fa-solid fa-minimize" />
       {{ $t(`editorPage.subConfig.basic.url.tips.fullScreenEditCancel`) }}
     </button>
-    <nut-textarea v-model="form.content" rows="8" />
+    <cmView :isReadOnly="false" id="SubEditer" />
   </div>
   <CompareTable
     v-if="compareTableIsVisible"
@@ -483,6 +483,8 @@
 
 <script lang="ts" setup>
 import { useSubsApi } from "@/api/subs";
+import cmView from "@/views/editCode/cmView.vue";
+import { useCodeStore } from "@/store/codeStore";
 import logoIcon from "@/assets/icons/logo.png";
 import logoRedIcon from "@/assets/icons/logo-red.png";
 import { usePopupRoute } from "@/hooks/usePopupRoute";
@@ -628,7 +630,13 @@ provide("form", form);
 
 // 排除非动作卡片
 const ignoreList = ["Quick Setting Operator"];
-// cmStore removed - form.content bound directly to textarea
+const cmStore = useCodeStore();
+watch(
+  () => cmStore.EditCode['SubEditer'],
+  (newCode) => {
+    form.content = newCode;
+  }
+);
 
 watchEffect(() => {
   if (isInit.value) return;
@@ -641,9 +649,9 @@ watchEffect(() => {
       case "subs":
         form.source = "remote";
         form.url = "";
-        form.content = "";
+        cmStore.setEditCode('SubEditer', "");
         form.ua = "";
-        form.content = "";
+        cmStore.setEditCode('SubEditer', "");
         break;
     }
     // 标记 加载完成
@@ -764,7 +772,7 @@ const fileChange = async (event) => {
     const reader = new FileReader();
     reader.readAsText(file);
     reader.onload = () => {
-      form.content = String(reader.result);
+      cmStore.setEditCode("SubEditer", String(reader.result));
     }
 
     reader.onerror = e => {
