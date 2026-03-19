@@ -1,6 +1,6 @@
 <template>
   <div class="my-page-wrapper">
-    <div class="profile-block">
+    <div class="profile-block" style="display:none">
       <div class="radio-wrapper" >
         <span v-for="i in [{value: 'gist'}, {value:'manual'}]" :class="{ 'tag': true, 'current': i.value === storageType }" @click="setTag(i.value)">{{$t(`myPage.storage.${i.value}.label`) }}</span>
         <p class="storage-info">{{ $t(`myPage.storage.${storageType}.info`) }}</p>
@@ -260,6 +260,7 @@
           />
         </div>
       </div>
+      <!-- 缓存配置已隐藏（未实现）
       <div class="config-card">
         <div class="title-wrapper" @click="isCacheConfigEditing ? exitEditMode('cache') : toggleEditMode('cache')">
           <h1>{{ $t(`myPage.cacheConfig`) }}</h1>
@@ -345,6 +346,7 @@
           />
         </div>
       </div>
+      --> <!-- end 缓存配置 -->
       <div class="config-card">
         <div class="title-wrapper" @click="isFrontEndConfigEditing ? exitEditMode('frontEnd') : toggleEditMode('frontEnd')">
           <h1>{{ $t(`myPage.frontEndConfig`) }}</h1>
