@@ -14,15 +14,16 @@ import (
 )
 
 type Handler struct {
-	store *store.Store
+	store       *store.Store
+	backendPath string
 }
 
-func New(s *store.Store) *Handler {
-	return &Handler{store: s}
+func New(s *store.Store, backendPath string) *Handler {
+	return &Handler{store: s, backendPath: backendPath}
 }
 
-// RegisterProtectedRoutes mounts all management API under an auth-protected group.
-func (h *Handler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
+// RegisterRoutes mounts all management API (no auth — path is the secret).
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	// ── Utils (Sub-Store compat) ──────────────────────────────────────────────
 	rg.GET("/utils/env", h.getEnv)
 	rg.GET("/utils/refresh", h.refresh)
@@ -49,7 +50,7 @@ func (h *Handler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
 	rg.DELETE("/token/:token", h.deleteToken)
 
 	// ── Download (Sub-Store compat: /download/:name) ──────────────────────────
-	rg.GET("/download/:name", h.downloadSub)
+	rg.GET("/download/:name", h.DownloadSub)
 
 	// ── Flow info (stub — we don't have real flow data) ───────────────────────
 	rg.GET("/sub/flow/:name", h.getFlow)
@@ -112,7 +113,8 @@ func (h *Handler) getEnv(c *gin.Context) {
 			"meta": gin.H{
 				"node": gin.H{
 					"env": gin.H{
-						"SUB_STORE_BACKEND_CUSTOM_NAME": "Sub-Store Go",
+						"SUB_STORE_BACKEND_CUSTOM_NAME":      "Sub-Store Go",
+						"SUB_STORE_FRONTEND_BACKEND_PATH":    h.backendPath,
 					},
 				},
 			},
@@ -442,7 +444,24 @@ func (h *Handler) sortTokens(c *gin.Context) {
 
 // ─── Download ─────────────────────────────────────────────────────────────────
 
-func (h *Handler) downloadSub(c *gin.Context) {
+// DownloadCollectionSub handles /download/collection/:name
+func (h *Handler) DownloadCollectionSub(c *gin.Context) {
+	name := decode(c.Param("name"))
+	col, ok := h.store.GetCollectionByName(name)
+	if !ok {
+		c.String(http.StatusNotFound, "not found")
+		return
+	}
+	nodes := h.store.GetCollectionNodes(col)
+	target := c.Query("target")
+	if target == "" {
+		target = exporter.DetectFormat(c.GetHeader("User-Agent"))
+	}
+	h.writeExport(c, target, nodes)
+}
+
+// DownloadSub is public (no auth) — clients use this directly.
+func (h *Handler) DownloadSub(c *gin.Context) {
 	name := decode(c.Param("name"))
 	// Check if it's a collection first
 	col, colOk := h.store.GetCollectionByName(name)
@@ -720,10 +739,10 @@ func tokenToMap(t store.Token) map[string]interface{} {
 		"displayName": t.DisplayName,
 		"remark":      t.Remark,
 		"token":       t.Token,
-		"createdAt":   t.CreatedAt,
+		"createdAt":   t.CreatedAt * 1000, // 转毫秒，dayjs 期望毫秒
 	}
 	if t.Exp != nil {
-		m["exp"] = *t.Exp
+		m["exp"] = *t.Exp * 1000 // 转毫秒
 	}
 	return m
 }
