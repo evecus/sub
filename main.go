@@ -72,6 +72,11 @@ func main() {
 	fileServer := http.FileServer(http.FS(distFS))
 	r.NoRoute(func(c *gin.Context) {
 		p := c.Request.URL.Path
+		// API 请求没有匹配路由 → 404（不能返回 index.html，否则前端会误判为成功）
+		if strings.HasPrefix(p, "/api/") || strings.Contains(p, "/api/") {
+			c.JSON(404, gin.H{"status": "failed", "error": gin.H{"message": "not found"}})
+			return
+		}
 		// 静态资源直接返回
 		if _, err := fs.Stat(distFS, strings.TrimPrefix(p, "/")); err == nil {
 			fileServer.ServeHTTP(c.Writer, c.Request)
