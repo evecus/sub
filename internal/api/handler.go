@@ -49,8 +49,10 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/tokens", h.listTokens)
 	rg.DELETE("/token/:token", h.deleteToken)
 
-	// ── Download (Sub-Store compat: /download/:name) ──────────────────────────
+	// ── Download & Sub (public, no auth needed — path is the secret) ───────────
 	rg.GET("/download/:name", h.DownloadSub)
+	rg.GET("/download/collection/:name", h.DownloadCollectionSub)
+	rg.GET("/sub/:token", h.ServeSubscription)
 
 	// ── Flow info (stub — we don't have real flow data) ───────────────────────
 	rg.GET("/sub/flow/:name", h.getFlow)
