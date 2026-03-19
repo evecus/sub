@@ -97,6 +97,7 @@ jobs:
           }
 
           build linux   arm64  ""
+          build linux   amd64  ""
 
           echo "---- Built files ----"
           ls -lh dist/
@@ -125,21 +126,16 @@ jobs:
             |------|------|--------|
             | Linux | x86_64 | `sub-store-linux-amd64` |
             | Linux | ARM64  | `sub-store-linux-arm64` |
-            | Linux | ARMv6  | `sub-store-linux-arm` |
-            | macOS | Intel  | `sub-store-darwin-amd64` |
-            | macOS | Apple Silicon | `sub-store-darwin-arm64` |
-            | Windows | x86_64 | `sub-store-windows-amd64.exe` |
-            | Windows | ARM64  | `sub-store-windows-arm64.exe` |
 
             ### 快速开始
 
             ```bash
-            # Linux / macOS
+            # Linux
             chmod +x sub-store-linux-amd64
             ./sub-store-linux-amd64
 
             # 自定义端口和密码
-            ./sub-store-linux-amd64 --port 8080 --auth admin:yourpassword --dir /data/sub-store
+            ./sub-store-linux-amd64 --port 8080 --path /yourpath --dir /data/sub-store
             ```
 
             启动后访问 `http://localhost:8080`，默认密码见终端输出。
