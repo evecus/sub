@@ -436,19 +436,7 @@
       </nut-form>
     </div>
 
-    <!-- 常用配置 -->
-    <CommonBlock v-if="appearanceSetting.isEditorCommon" />
-
-    <!-- 节点操作 -->
-    <ActionBlock
-      ref="actionBlockRef"
-      :checked="actionsChecked"
-      :list="actionsList"
-      @updateCustomNameModeFlag="updateCustomNameModeFlag"
-      @addAction="addAction"
-      @deleteAction="deleteAction"
-      @toggleAction="toggleAction"
-    />
+    <!-- 常用配置和节点操作已隐藏（后端未实现） -->
   </div>
 
   <div class="bottom-btn-wrapper">
