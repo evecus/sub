@@ -13,6 +13,7 @@ const service = axios.create({
   baseURL: getHostAPIUrl(),
   timeout: 50000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // 携带 session cookie
 });
 
 service.interceptors.response.use(
