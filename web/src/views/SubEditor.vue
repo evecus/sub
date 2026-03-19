@@ -492,11 +492,6 @@ import { useSettingsStore } from '@/store/settings';
 import { useSubsStore } from "@/store/subs";
 import { initStores } from "@/utils/initApp";
 import draggable from "vuedraggable";
-import ActionRadio from "@/views/editor/components/ActionRadio.vue";
-import FilterSelect from "@/views/editor/components/FilterSelect.vue";
-import HandleDuplicate from "@/views/editor/components/HandleDuplicate.vue";
-import Regex from "@/views/editor/components/Regex.vue";
-import Script from "@/views/editor/components/Script.vue";
 import IconPopup from "@/views/icon/IconPopup.vue";
 import TagPopup from "@/components/TagPopup.vue";
 import { Dialog, Toast } from "@nutui/nutui";
@@ -725,32 +720,7 @@ watchEffect(() => {
           component: null,
           enabled: !disabled,
         };
-        switch (type) {
-          case "Flag Operator":
-          case "Sort Operator":
-          case "Resolve Domain Operator":
-            action.component = shallowRef(ActionRadio);
-            break;
-          case "Region Filter":
-          case "Type Filter":
-            action.component = shallowRef(FilterSelect);
-            break;
-          case "Regex Filter":
-          case "Regex Sort Operator":
-          case "Regex Delete Operator":
-          case "Regex Rename Operator":
-            action.component = shallowRef(Regex);
-            break;
-          case "Handle Duplicate Operator":
-            action.component = shallowRef(HandleDuplicate);
-            break;
-          case "Script Filter":
-          case "Script Operator":
-            action.component = shallowRef(Script);
-            break;
-          default:
-            break;
-        }
+        // action components removed
         actionsList.push(action);
       }
     });
