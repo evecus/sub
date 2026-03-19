@@ -249,7 +249,7 @@ router.beforeResolve(async (to, from) => {
           await useSubsApi().getOne('sub', name);
         } else if (to.params.editType === 'collections') {
           await useSubsApi().getOne('collection', name);
-
+        }
       } catch {
         router.replace('/404');
       }
