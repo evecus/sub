@@ -1,7 +1,7 @@
 <template>
   <div class="my-page-wrapper">
-    <div class="profile-block" style="display:none">
-      <div class="radio-wrapper" >
+    <div class="profile-block">
+      <div class="radio-wrapper" style="display:none">
         <span v-for="i in [{value: 'gist'}, {value:'manual'}]" :class="{ 'tag': true, 'current': i.value === storageType }" @click="setTag(i.value)">{{$t(`myPage.storage.${i.value}.label`) }}</span>
         <p class="storage-info">{{ $t(`myPage.storage.${storageType}.info`) }}</p>
       </div>
@@ -12,7 +12,7 @@
         </nut-radiogroup>
       </div> -->
     
-      <div class="info">
+      <div class="info" style="display:none">
         <div v-if="storageType === 'manual'" class="avatar-wrapper">
           <nut-avatar
             :class="{ 'avatar-normal': !githubUser }"
@@ -113,7 +113,7 @@
           </nut-button>
         </div>
       </div>
-      <div class="config-card" v-if="storageType !== 'manual'" >
+      <div class="config-card" v-if="false" >
         <div class="title-wrapper" @click="isGitHubConfigEditing ? exitEditMode('github') : toggleEditMode('github')">
           <h1>{{ $t(`myPage.githubConfig`) }}</h1>
           <div class="config-btn-wrapper">
