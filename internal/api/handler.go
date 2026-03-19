@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/evecus/sub/internal/exporter"
 	"github.com/evecus/sub/internal/parser"
+	"github.com/evecus/sub/internal/session"
 	"github.com/evecus/sub/internal/store"
 )
 
@@ -121,6 +122,12 @@ func (h *Handler) ServeSubscription(c *gin.Context) {
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
 func (h *Handler) GetEnv(c *gin.Context) {
+	// 设置当天日期 Cookie，到 24:00 失效
+	today := time.Now().Format("2006-01-02")
+	now := time.Now()
+	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	maxAge := int(midnight.Sub(now).Seconds())
+	c.SetCookie("ss_date", today, maxAge, "/", "", false, true)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
