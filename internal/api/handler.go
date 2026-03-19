@@ -186,16 +186,16 @@ func (h *Handler) createSub(c *gin.Context) {
 
 	// Fetch nodes if remote
 	if sub.SourceType == store.SourceURL && sub.URL != "" {
-		nodes, err := fetchAndParse(sub.URL)
+		nodes, err := FetchAndParse(sub.URL)
 		if err == nil {
-			assignIDs(nodes)
+			AssignIDs(nodes)
 			sub.Nodes = nodes
 		} else {
 			sub.Nodes = []store.Node{}
 		}
 	} else if sub.SourceType == store.SourceLocal && sub.LocalContent != "" {
 		nodes, _ := parser.ParseSubscription(sub.LocalContent)
-		assignIDs(nodes)
+		AssignIDs(nodes)
 		sub.Nodes = nodes
 	} else {
 		sub.Nodes = []store.Node{}
@@ -234,7 +234,7 @@ func (h *Handler) editSub(c *gin.Context) {
 		sub.LocalContent = updated.LocalContent
 		if sub.SourceType == store.SourceLocal || sub.SourceType == store.SourceFile {
 			nodes, _ := parser.ParseSubscription(updated.LocalContent)
-			assignIDs(nodes)
+			AssignIDs(nodes)
 			sub.Nodes = nodes
 			sub.NodeCount = len(nodes)
 		}
@@ -778,7 +778,7 @@ func tokenToMap(t store.Token) map[string]interface{} {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-func fetchAndParse(rawURL string) ([]store.Node, error) {
+func FetchAndParse(rawURL string) ([]store.Node, error) {
 	if isDirectURI(rawURL) {
 		node, err := parser.ParseURI(rawURL)
 		if err != nil {
@@ -808,7 +808,7 @@ func isDirectURI(s string) bool {
 	return false
 }
 
-func assignIDs(nodes []store.Node) {
+func AssignIDs(nodes []store.Node) {
 	for i := range nodes {
 		nodes[i].ID = fmt.Sprintf("%s-%d", store.NewID(), i)
 	}
