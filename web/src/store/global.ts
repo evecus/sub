@@ -105,5 +105,45 @@ export const useGlobalStore = defineStore('globalStore', {
       else localStorage.removeItem('isSimpleMode');
       this.isSimpleMode = isSimpleMode;
     },
+    setLeftRight(isLeftRight: boolean) {
+      if (isLeftRight) localStorage.setItem('isLr', '1');
+      else localStorage.removeItem('isLr');
+      this.isLeftRight = isLeftRight;
+    },
+    setIconColor(isIconColor: boolean) {
+      if (isIconColor) localStorage.setItem('iconColor', '1');
+      else localStorage.removeItem('iconColor');
+      this.isIconColor = isIconColor;
+    },
+    setIsDefaultIcon(isDefaultIcon: boolean) {
+      if (isDefaultIcon) localStorage.setItem('isDefaultIcon', '1');
+      else localStorage.removeItem('isDefaultIcon');
+      this.isDefaultIcon = isDefaultIcon;
+    },
+    setEditorCommon(isEditorCommon: boolean) {
+      if (!isEditorCommon) localStorage.setItem('iseditorCommon', '1');
+      else localStorage.removeItem('iseditorCommon');
+      this.isEditorCommon = isEditorCommon;
+    },
+    setSimpleReicon(isSimpleReicon: boolean) {
+      if (isSimpleReicon) localStorage.setItem('isSimpleReicon', '1');
+      else localStorage.removeItem('isSimpleReicon');
+      this.isSimpleReicon = isSimpleReicon;
+    },
+    setShowFloatingRefreshButton(show: boolean) {
+      if (show) localStorage.setItem('showFloatingRefreshButton', '1');
+      else localStorage.removeItem('showFloatingRefreshButton');
+      this.showFloatingRefreshButton = show;
+    },
+    settabBar(istabBar: boolean) {
+      if (istabBar) localStorage.setItem('istabBar', '1');
+      else localStorage.removeItem('istabBar');
+      this.istabBar = istabBar;
+    },
+    settabBar2(istabBar2: boolean) {
+      if (istabBar2) localStorage.setItem('istabBar2', '1');
+      else localStorage.removeItem('istabBar2');
+      this.istabBar2 = istabBar2;
+    },
   },
 });
