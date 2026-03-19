@@ -72,7 +72,8 @@ func main() {
 	}
 	group.GET("/download/:name", h.DownloadSub)
 	group.GET("/download/collection/:name", h.DownloadCollectionSub)
-	group.GET("/sub/:token", h.ServeSubscription)
+	// /sub/:token 挂根路径，不暴露管理路径
+	r.GET("/sub/:token", h.ServeSubscription)
 
 	// ── Frontend（静态文件，挂在根路径）────────────────────────────────────
 	distFS, err := fs.Sub(webFS, "web/dist")
