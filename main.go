@@ -54,15 +54,25 @@ func main() {
 	h := api.New(s, backendPath)
 
 	// ── 所有路由挂在 backendPath 前缀下 ──────────────────────────────────────
+	// API 路由挂在 backendPath/api 下（前端请求 /1234/api/subs 等）
+	var apiGroup *gin.RouterGroup
+	if backendPath == "/" {
+		apiGroup = r.Group("/api")
+	} else {
+		apiGroup = r.Group(backendPath + "/api")
+	}
+	h.RegisterRoutes(apiGroup)
+
+	// download 和 sub 路由挂在 backendPath 下（不含 /api）
 	var group *gin.RouterGroup
 	if backendPath == "/" {
 		group = r.Group("/")
 	} else {
 		group = r.Group(backendPath)
 	}
-
-	// 所有路由（API + 下载 + 订阅）
-	h.RegisterRoutes(group)
+	group.GET("/download/:name", h.DownloadSub)
+	group.GET("/download/collection/:name", h.DownloadCollectionSub)
+	group.GET("/sub/:token", h.ServeSubscription)
 
 	// ── Frontend（静态文件，挂在根路径）────────────────────────────────────
 	distFS, err := fs.Sub(webFS, "web/dist")
@@ -73,7 +83,7 @@ func main() {
 	r.NoRoute(func(c *gin.Context) {
 		p := c.Request.URL.Path
 		// API 请求没有匹配路由 → 404（不能返回 index.html，否则前端会误判为成功）
-		if strings.HasPrefix(p, "/api/") || strings.Contains(p, "/api/") {
+		if strings.Contains(p, "/api/") {
 			c.JSON(404, gin.H{"status": "failed", "error": gin.H{"message": "not found"}})
 			return
 		}
