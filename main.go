@@ -14,6 +14,7 @@ import (
 	"github.com/evecus/sub/internal/api"
 	"github.com/evecus/sub/internal/buildinfo"
 	"github.com/evecus/sub/internal/ratelimit"
+	"github.com/evecus/sub/internal/scheduler"
 	"github.com/evecus/sub/internal/session"
 	"github.com/evecus/sub/internal/store"
 )
