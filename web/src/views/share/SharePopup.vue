@@ -498,7 +498,7 @@ const handleCopyShare = async (isNotify: boolean = true) => {
 };
 
 const secretPath = computed(() => {
-  return env.value?.meta?.node?.env?.SUB_STORE_FRONTEND_BACKEND_PATH || "";
+  return env.value?.meta?.node?.env?.SUB_STORE_FRONTEND_BACKEND_PATH || "/";
 });
 
 const handleUpdateShare = async () => {
