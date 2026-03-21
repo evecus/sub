@@ -1,0 +1,384 @@
+name: Build Sub-Store IPK
+
+on:
+  workflow_dispatch:
+    inputs:
+      binary_version:
+        description: '核心版本号（留空则使用时间戳）'
+        required: false
+        type: string
+      luci_version:
+        description: 'LuCI IPK 版本号（留空则随机生成）'
+        required: false
+        type: string
+      release_notes:
+        description: 'Release 说明（留空则自动生成）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set versions
+        id: meta
+        run: |
+          BIN_VERSION="${{ inputs.binary_version }}"
+          [ -z "$BIN_VERSION" ] && BIN_VERSION="v$(date -u +'%Y%m%d-%H%M%S')"
+
+          LUCI_VERSION="${{ inputs.luci_version }}"
+          [ -z "$LUCI_VERSION" ] && LUCI_VERSION="$(shuf -i 1-9 -n1).$(shuf -i 0-9 -n1)-r$(shuf -i 1-9 -n1)"
+
+          echo "bin_version=$BIN_VERSION" >> $GITHUB_OUTPUT
+          echo "luci_version=$LUCI_VERSION" >> $GITHUB_OUTPUT
+          echo "Binary version: $BIN_VERSION"
+          echo "LuCI version:   $LUCI_VERSION"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: web
+        run: pnpm build
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Download Go modules
+        run: go mod tidy && go mod download
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          TAG="${{ steps.meta.outputs.bin_version }}"
+          for ARCH in arm64 amd64; do
+            NAME="sub-store-linux-${ARCH}"
+            echo "Building $NAME ..."
+            GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 \
+              go build \
+                -ldflags="-s -w -X 'github.com/evecus/sub/internal/buildinfo.Version=${TAG}'" \
+                -o "dist/${NAME}" .
+          done
+          ls -lh dist/
+
+      - name: Build ARM64 IPK
+        id: build_arm64_ipk
+        run: |
+          BINARY="dist/sub-store-linux-arm64"
+          VERSION="${{ steps.meta.outputs.bin_version }}"
+          IPK_FILE="sub-store_${VERSION}_aarch64.ipk"
+
+          mkdir -p ipk_arm64/data/usr/bin ipk_arm64/control
+          cp "$BINARY" ipk_arm64/data/usr/bin/sub-store
+          chmod 755 ipk_arm64/data/usr/bin/sub-store
+          INSTALLED_SIZE=$(du -sk ipk_arm64/data | awk '{print $1}')
+
+          printf 'Package: sub-store\nVersion: %s\nArchitecture: aarch64_cortex-a53\nInstalled-Size: %s\nSection: utils\nDescription: Sub-Store subscription converter\n' \
+            "$VERSION" "$INSTALLED_SIZE" > ipk_arm64/control/control
+
+          echo "2.0" > debian-binary
+          tar --numeric-owner --group=0 --owner=0 -czf control.tar.gz -C ipk_arm64/control .
+          tar --numeric-owner --group=0 --owner=0 -czf data.tar.gz -C ipk_arm64/data .
+          tar --numeric-owner --group=0 --owner=0 -czf "$IPK_FILE" debian-binary control.tar.gz data.tar.gz
+          echo "ipk_file=$IPK_FILE" >> $GITHUB_OUTPUT
+
+      - name: Build AMD64 IPK
+        id: build_amd64_ipk
+        run: |
+          BINARY="dist/sub-store-linux-amd64"
+          VERSION="${{ steps.meta.outputs.bin_version }}"
+          IPK_FILE="sub-store_${VERSION}_x86_64.ipk"
+
+          mkdir -p ipk_amd64/data/usr/bin ipk_amd64/control
+          cp "$BINARY" ipk_amd64/data/usr/bin/sub-store
+          chmod 755 ipk_amd64/data/usr/bin/sub-store
+          INSTALLED_SIZE=$(du -sk ipk_amd64/data | awk '{print $1}')
+
+          printf 'Package: sub-store\nVersion: %s\nArchitecture: x86_64\nInstalled-Size: %s\nSection: utils\nDescription: Sub-Store subscription converter\n' \
+            "$VERSION" "$INSTALLED_SIZE" > ipk_amd64/control/control
+
+          echo "2.0" > debian-binary
+          tar --numeric-owner --group=0 --owner=0 -czf control_amd64.tar.gz -C ipk_amd64/control .
+          tar --numeric-owner --group=0 --owner=0 -czf data_amd64.tar.gz -C ipk_amd64/data .
+          tar --numeric-owner --group=0 --owner=0 -czf "$IPK_FILE" \
+            --transform 's|debian-binary|debian-binary|' \
+            --transform 's|control_amd64\.tar\.gz|control.tar.gz|' \
+            --transform 's|data_amd64\.tar\.gz|data.tar.gz|' \
+            debian-binary control_amd64.tar.gz data_amd64.tar.gz
+          echo "ipk_file=$IPK_FILE" >> $GITHUB_OUTPUT
+
+      - name: Build LuCI IPK
+        id: build_luci_ipk
+        run: |
+          LUCI_VERSION="${{ steps.meta.outputs.luci_version }}"
+          LUCI_IPK="luci-app-sub-store_${LUCI_VERSION}_all.ipk"
+
+          mkdir -p luci/data/etc/{init.d,config,uci-defaults}
+          mkdir -p luci/data/usr/share/luci/menu.d
+          mkdir -p luci/data/usr/share/rpcd/{acl.d,ucode}
+          mkdir -p luci/data/www/luci-static/resources/view/sub-store
+          mkdir -p luci/control
+
+          # uci-defaults: 安装后自动重启 rpcd
+          printf '#!/bin/sh\n/etc/init.d/rpcd restart\nexit 0\n' > luci/data/etc/uci-defaults/luci-app-sub-store
+          chmod +x luci/data/etc/uci-defaults/luci-app-sub-store
+
+          # init.d
+          cat > luci/data/etc/init.d/sub-store <<'INITEOF'
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=99
+STOP=10
+
+start_service() {
+    config_load "sub-store"
+    local enabled port data_dir path
+    config_get_bool enabled config enabled 0
+    [ "$enabled" = "0" ] && return 0
+    config_get port     config port     "8080"
+    config_get data_dir config data_dir "/etc/sub-store"
+    config_get path     config path     ""
+
+    mkdir -p "$data_dir"
+
+    procd_open_instance
+    procd_set_param command /usr/bin/sub-store \
+        --port "$port" \
+        --dir  "$data_dir"
+    [ -n "$path" ] && procd_append_param command --path "$path"
+    procd_set_param respawn
+    procd_set_param stderr 1
+    procd_set_param stdout 1
+    procd_close_instance
+}
+
+stop_service() {
+    return 0
+}
+
+service_triggers() {
+    procd_add_reload_trigger "sub-store"
+}
+INITEOF
+          chmod +x luci/data/etc/init.d/sub-store
+
+          # UCI config
+          cat > luci/data/etc/config/sub-store <<'CONFEOF'
+config sub-store config
+	option enabled '0'
+	option port '8080'
+	option data_dir '/etc/sub-store'
+	option path ''
+CONFEOF
+
+          # Menu
+          cat > luci/data/usr/share/luci/menu.d/luci-app-sub-store.json <<'MENUEOF'
+{
+    "admin/services/sub-store": {
+        "title": "Sub-Store",
+        "order": 88,
+        "action": { "type": "view", "path": "sub-store/main" }
+    }
+}
+MENUEOF
+
+          # ACL
+          cat > luci/data/usr/share/rpcd/acl.d/luci-app-sub-store.json <<'ACLEOF'
+{
+    "luci-app-sub-store": {
+        "description": "LuCI Sub-Store access control",
+        "read": {
+            "ubus": { "luci.sub-store": [ "get_status" ] },
+            "uci": [ "sub-store" ]
+        },
+        "write": { "uci": [ "sub-store" ] }
+    }
+}
+ACLEOF
+
+          # RPC ucode
+          cat > 'luci/data/usr/share/rpcd/ucode/luci.sub-store' <<'RPCEOF'
+#!/usr/bin/ucode
+'use strict';
+import { cursor } from 'uci';
+const methods = {
+    get_status: {
+        call: function() {
+            const running = system('pgrep -f /usr/bin/sub-store >/dev/null 2>&1') === 0;
+            const uci = cursor();
+            uci.load('sub-store');
+            const port = uci.get('sub-store', 'config', 'port') || '8080';
+            const path = uci.get('sub-store', 'config', 'path') || '';
+            return { running, port, path };
+        }
+    }
+};
+return { 'luci.sub-store': methods };
+RPCEOF
+
+          # main.js
+          cat > luci/data/www/luci-static/resources/view/sub-store/main.js <<'JSEOF'
+'use strict';
+'require view';
+'require form';
+'require rpc';
+'require poll';
+'require uci';
+
+const callGetStatus = rpc.declare({
+    object: 'luci.sub-store',
+    method: 'get_status',
+    expect: { '': {} }
+});
+
+return view.extend({
+    load() { return uci.load('sub-store'); },
+    render() {
+        let m, s, o;
+        m = new form.Map('sub-store', 'Sub-Store', '订阅转换服务');
+
+        const ss = m.section(form.TypedSection);
+        ss.render = function() {
+            const statusEl = E('span', { 'style': 'font-style:italic; font-weight:bold;' }, '检查中...');
+            const openBtn = E('a', {
+                'class': 'btn cbi-button cbi-button-action',
+                'target': '_blank',
+                'style': 'margin-left:12px; display:none;'
+            }, '打开面板');
+            poll.add(() => callGetStatus().then(res => {
+                const running = res && res.running;
+                statusEl.innerHTML = running
+                    ? '<span style="color:#27ae60">Sub-Store 运行中</span>'
+                    : '<span style="color:#e74c3c">Sub-Store 未运行</span>';
+                if (running && res.port) {
+                    const path = res.path ? res.path.replace(/^\//, '') : '';
+                    openBtn.href = 'http://' + window.location.hostname + ':' + res.port + (path ? '/' + path : '');
+                    openBtn.style.display = '';
+                } else {
+                    openBtn.style.display = 'none';
+                }
+            }), 5);
+            return E('div', { 'class': 'cbi-section', 'style': 'padding:8px 0;' }, [
+                E('div', { 'style': 'display:flex; align-items:center;' }, [ statusEl, openBtn ])
+            ]);
+        };
+
+        s = m.section(form.NamedSection, 'config', 'sub-store', '设置');
+        s.anonymous = true;
+
+        o = s.option(form.Flag, 'enabled', '启用');
+        o.default = o.disabled; o.rmempty = false;
+
+        o = s.option(form.Value, 'port', '监听端口', '默认 8080');
+        o.datatype = 'port'; o.default = '8080'; o.rmempty = false;
+
+        o = s.option(form.Value, 'path', '后端路径前缀',
+            '访问路径，例如填 /secret 则访问 http://路由器IP:端口/secret，留空则不设置');
+        o.placeholder = '/secret123'; o.rmempty = true;
+
+        o = s.option(form.Value, 'data_dir', '数据目录', '订阅数据存储路径');
+        o.default = '/etc/sub-store'; o.rmempty = false;
+
+        return m.render();
+    }
+});
+JSEOF
+
+          INSTALLED_SIZE=$(du -sk luci/data | awk '{print $1}')
+          printf 'Package: luci-app-sub-store\nVersion: %s\nDepends: libc, sub-store\nArchitecture: all\nInstalled-Size: %s\nSection: luci\nDescription: LuCI interface for Sub-Store\n' \
+            "$LUCI_VERSION" "$INSTALLED_SIZE" > luci/control/control
+
+          echo "2.0" > luci_deb
+          tar --numeric-owner --group=0 --owner=0 -czf luci_ctrl.tar.gz -C luci/control .
+          tar --numeric-owner --group=0 --owner=0 -czf luci_data.tar.gz -C luci/data .
+          tar --numeric-owner --group=0 --owner=0 -czf "$LUCI_IPK" \
+            --transform 's|luci_deb|debian-binary|' \
+            --transform 's|luci_ctrl\.tar\.gz|control.tar.gz|' \
+            --transform 's|luci_data\.tar\.gz|data.tar.gz|' \
+            luci_deb luci_ctrl.tar.gz luci_data.tar.gz
+
+          echo "luci_ipk_file=$LUCI_IPK" >> $GITHUB_OUTPUT
+
+      - name: Generate checksums
+        run: |
+          sha256sum \
+            dist/sub-store-linux-arm64 \
+            dist/sub-store-linux-amd64 \
+            ${{ steps.build_arm64_ipk.outputs.ipk_file }} \
+            ${{ steps.build_amd64_ipk.outputs.ipk_file }} \
+            ${{ steps.build_luci_ipk.outputs.luci_ipk_file }} \
+            > checksums.txt
+          cat checksums.txt
+
+      - name: Prepare release body
+        id: release_body
+        run: |
+          if [ -n "${{ inputs.release_notes }}" ]; then
+            printf '%s' "${{ inputs.release_notes }}" > release_body.txt
+          else
+            cat > release_body.txt << EOF
+          ## Sub-Store ${{ steps.meta.outputs.bin_version }}
+
+          | 文件 | 说明 |
+          |------|------|
+          | sub-store-linux-arm64 | Linux ARM64 二进制 |
+          | sub-store-linux-amd64 | Linux x86_64 二进制 |
+          | sub-store_*_aarch64.ipk | OpenWrt ARM64 核心包 |
+          | sub-store_*_x86_64.ipk | OpenWrt x86_64 核心包 |
+          | luci-app-sub-store_*.ipk | LuCI 管理界面（通用）|
+
+          ### 安装
+          \`\`\`bash
+          opkg install sub-store_*_aarch64.ipk
+          opkg install luci-app-sub-store_*.ipk
+          \`\`\`
+          EOF
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.bin_version }}
+          name: "Sub-Store ${{ steps.meta.outputs.bin_version }}"
+          body_path: release_body.txt
+          files: |
+            dist/sub-store-linux-arm64
+            dist/sub-store-linux-amd64
+            ${{ steps.build_arm64_ipk.outputs.ipk_file }}
+            ${{ steps.build_amd64_ipk.outputs.ipk_file }}
+            ${{ steps.build_luci_ipk.outputs.luci_ipk_file }}
+            checksums.txt
+          draft: false
+          prerelease: false
