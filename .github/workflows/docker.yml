@@ -1,0 +1,114 @@
+name: Docker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 生成版本 tag ────────────────────────────────────────
+      - name: Set version tag
+        id: tag
+        run: |
+          TAG="v$(date -u +'%Y%m%d-%H%M%S')"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "Generated tag: $TAG"
+
+      # ── 构建前端 ────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: web
+        run: pnpm build
+
+      # ── 准备 Go 模块 ─────────────────────────────────────────
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.mod') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Tidy Go modules
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Commit go.sum if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet go.sum go.mod 2>/dev/null || [ ! -f go.sum ]; then
+            git add go.sum go.mod
+            git commit -m "chore: update go.sum [skip ci]" || echo "nothing to commit"
+            git push || echo "push skipped"
+          fi
+
+      # ── 编译多平台二进制 ─────────────────────────────────────
+      - name: Build binaries for docker
+        env:
+          TAG: ${{ steps.tag.outputs.TAG }}
+        run: |
+          mkdir -p bin
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build             -ldflags="-s -w -X 'github.com/evecus/sub/internal/buildinfo.Version=${TAG}'"             -o bin/sub-store-linux-amd64 .
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build             -ldflags="-s -w -X 'github.com/evecus/sub/internal/buildinfo.Version=${TAG}'"             -o bin/sub-store-linux-arm64 .
+
+      # ── 设置 Docker Buildx（多平台支持）────────────────────
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── 登录 GitHub Container Registry ─────────────────────
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 构建并推送镜像 ──────────────────────────────────────
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
